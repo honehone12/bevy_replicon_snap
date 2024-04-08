@@ -8,9 +8,8 @@ use bevy_replicon::bincode;
 use bevy_replicon::bincode::deserialize_from;
 use bevy_replicon::client::client_mapper::ServerEntityMap;
 use bevy_replicon::client::ServerEntityTicks;
-use bevy_replicon::core::replication_rules;
-use bevy_replicon::core::replication_rules::{
-    serialize_component, DeserializeFn, RemoveComponentFn, SerializeFn,
+use bevy_replicon::core::replication_fns::{
+    self, ComponentFns, DeserializeFn, RemoveFn, SerializeFn
 };
 use bevy_replicon::core::replicon_channels::RepliconChannel;
 use bevy_replicon::core::replicon_tick::RepliconTick;
@@ -261,7 +260,7 @@ pub trait AppInterpolationExt {
         &mut self,
         serialize: SerializeFn,
         deserialize: DeserializeFn,
-        remove: RemoveComponentFn,
+        remove: RemoveFn,
     ) -> &mut Self
     where
         C: Component + Interpolate + Clone;
@@ -277,9 +276,9 @@ impl AppInterpolationExt for App {
         C: Component + Interpolate + Clone + Serialize + DeserializeOwned,
     {
         self.replicate_interpolated_with::<C>(
-            serialize_component::<C>,
+            replication_fns::serialize::<C>,
             deserialize_snap_component::<C>,
-            replication_rules::remove_component::<C>,
+            replication_fns::remove::<C>,
         )
     }
 
@@ -287,7 +286,7 @@ impl AppInterpolationExt for App {
         &mut self,
         serialize: SerializeFn,
         deserialize: DeserializeFn,
-        remove: RemoveComponentFn,
+        remove: RemoveFn,
     ) -> &mut Self
     where
         T: Component + Interpolate + Clone,
@@ -308,7 +307,13 @@ impl AppInterpolationExt for App {
                 .in_set(InterpolationSet::Interpolate)
                 .run_if(resource_exists::<RenetClient>),
         );
-        self.replicate_with::<T>(serialize, deserialize, remove)
+        unsafe {
+            self.replicate_with::<T>(ComponentFns{
+                serialize, 
+                deserialize, 
+                remove
+            })
+        }
     }
 
     fn add_client_predicted_event<C>(&mut self, channel: impl Into<RepliconChannel>) -> &mut Self
