@@ -65,8 +65,8 @@ impl Plugin for SnapshotInterpolationPlugin {
 }
 
 #[derive(Resource, Serialize, Deserialize, Debug)]
-pub struct InterpolationConfig {
-    pub max_tick_rate: u16,
+pub(crate) struct InterpolationConfig {
+    max_tick_rate: u16,
 }
 
 #[derive(Component, Deserialize, Serialize, Reflect)]
@@ -76,7 +76,19 @@ pub struct Interpolated;
 pub struct OwnerPredicted;
 
 #[derive(Component, Deserialize, Serialize, Reflect)]
-pub struct NetworkOwner(pub u64);
+pub struct NetworkOwner(u64);
+
+impl NetworkOwner {
+    #[inline]
+    pub fn new(id: u64) -> Self {
+        Self(id)
+    }
+
+    #[inline]
+    pub fn id(&self) -> u64 {
+        self.0
+    }
+}
 
 #[derive(Component, Reflect)]
 pub struct Predicted;
@@ -91,9 +103,29 @@ pub struct Snapshot<T: Component + Interpolate + Clone> {
     value: T,
 }
 
+impl<T: Component + Interpolate + Clone> Snapshot<T> {
+    #[inline]
+    pub fn new(element: T, tick: u32) -> Self {
+        Self { 
+            tick, 
+            value: element 
+        }
+    }
+
+    #[inline]
+    pub fn tick(&self) -> u32 {
+        self.tick
+    }
+
+    #[inline]
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+}
+
 #[derive(Component, Deserialize, Serialize, Reflect)]
 pub struct SnapshotBuffer<T: Component + Interpolate + Clone> {
-    buffer: VecDeque<T>,
+    buffer: VecDeque<Snapshot<T>>,
     time_since_last_snapshot: f32,
     latest_snapshot_tick: u32,
 }
@@ -110,19 +142,22 @@ impl<T: Component + Interpolate + Clone> SnapshotBuffer<T> {
         if self.buffer.len() > 1 {
             self.buffer.pop_front();
         }
-        self.buffer.push_back(element);
+        self.buffer.push_back(Snapshot::new(element, tick));
         self.time_since_last_snapshot = 0.0;
         self.latest_snapshot_tick = tick;
     }
 
-    pub fn latest_snapshot(&self) -> T {
-        self.buffer.iter().last().unwrap().clone()
+    #[inline]
+    pub fn latest_snapshot(&self) -> Option<&Snapshot<T>> {
+        self.buffer.back()
     }
 
+    #[inline]
     pub fn latest_snapshot_tick(&self) -> u32 {
         self.latest_snapshot_tick
     }
 
+    #[inline]
     pub fn age(&self) -> f32 {
         self.time_since_last_snapshot
     }
@@ -218,7 +253,7 @@ fn snapshot_interpolation_system<T: Component + Interpolate + Clone>(
         }
 
         let t = (elapsed / tick_duration).clamp(0., 1.);
-        *component = buffer[0].interpolate(buffer[1].clone(), t);
+        *component = buffer[0].value.interpolate(buffer[1].value.clone(), t);
         snapshot_buffer.time_since_last_snapshot += time.delta_seconds();
     }
 }
