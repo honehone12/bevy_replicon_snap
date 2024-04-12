@@ -58,14 +58,14 @@ impl Plugin for SnapshotInterpolationPlugin {
                     .run_if(resource_exists::<NetcodeClientTransport>)
                     .in_set(InterpolationSet::Init),
             )
-            .insert_resource(RepliconSnapConfig {
+            .insert_resource(InterpolationConfig {
                 max_tick_rate: self.max_tick_rate,
             });
     }
 }
 
 #[derive(Resource, Serialize, Deserialize, Debug)]
-pub(crate) struct RepliconSnapConfig {
+pub(crate) struct InterpolationConfig {
     max_tick_rate: u16,
 }
 
@@ -263,7 +263,7 @@ fn snapshot_buffer_init_system<T: Component + Interpolate + Clone>(
 fn snapshot_interpolation_system<T: Component + Interpolate + Clone>(
     mut q: Query<(&mut T, &mut SnapshotBuffer<T>), (With<Interpolated>, Without<Predicted>)>,
     time: Res<Time>,
-    config: Res<RepliconSnapConfig>,
+    config: Res<InterpolationConfig>,
 ) {
     for (mut component, mut snapshot_buffer) in q.iter_mut() {
         let buffer = &snapshot_buffer.buffer;
