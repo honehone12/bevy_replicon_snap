@@ -236,7 +236,7 @@ impl SimpleBoxPlugin {
     ) {
         for FromClient { client_id, event } in move_events.read() {
             for (player, mut position) in &mut players {
-                if client_id.get() == player.0 {
+                if client_id.get() == player.get() {
                     Self::apply_move_command(&mut *position, event, time.delta_seconds())
                 }
             }
@@ -265,12 +265,16 @@ impl SimpleBoxPlugin {
                 );
             }
 
-            let mut corrected_position = snapshot_buffer.latest_snapshot().0;
+            let mut corrected_position = match snapshot_buffer.latest_snapshot() {
+                Some(s) => s.value().0,
+                None => Vec2::ZERO
+            };
+            
             for event_snapshot in event_history.predict(snapshot_buffer.latest_snapshot_tick()) {
                 Self::apply_move_command(
                     &mut corrected_position,
-                    &event_snapshot.value,
-                    event_snapshot.delta_time,
+                    &event_snapshot.value(),
+                    event_snapshot.delta_time(),
                 );
             }
             position.0 = corrected_position;
@@ -320,7 +324,7 @@ struct PlayerBundle {
 impl PlayerBundle {
     fn new(id: ClientId, position: Vec2, color: Color) -> Self {
         Self {
-            owner: NetworkOwner(id.get()),
+            owner: NetworkOwner::new(id.get()),
             position: PlayerPosition(position),
             color: PlayerColor(color),
             replication: Replication,

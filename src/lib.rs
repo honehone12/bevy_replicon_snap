@@ -58,14 +58,14 @@ impl Plugin for SnapshotInterpolationPlugin {
                     .run_if(resource_exists::<NetcodeClientTransport>)
                     .in_set(InterpolationSet::Init),
             )
-            .insert_resource(InterpolationConfig {
+            .insert_resource(RepliconSnapConfig {
                 max_tick_rate: self.max_tick_rate,
             });
     }
 }
 
 #[derive(Resource, Serialize, Deserialize, Debug)]
-pub(crate) struct InterpolationConfig {
+pub(crate) struct RepliconSnapConfig {
     max_tick_rate: u16,
 }
 
@@ -85,7 +85,7 @@ impl NetworkOwner {
     }
 
     #[inline]
-    pub fn id(&self) -> u64 {
+    pub fn get(&self) -> u64 {
         self.0
     }
 }
@@ -105,10 +105,10 @@ pub struct Snapshot<T: Component + Interpolate + Clone> {
 
 impl<T: Component + Interpolate + Clone> Snapshot<T> {
     #[inline]
-    pub fn new(element: T, tick: u32) -> Self {
+    pub fn new(value: T, tick: u32) -> Self {
         Self { 
             tick, 
-            value: element 
+            value 
         }
     }
 
@@ -164,9 +164,35 @@ impl<T: Component + Interpolate + Clone> SnapshotBuffer<T> {
 }
 
 pub struct EventSnapshot<T: Event> {
-    pub value: T,
-    pub tick: u32,
-    pub delta_time: f32,
+    value: T,
+    tick: u32,
+    delta_time: f32,
+}
+
+impl<T: Event> EventSnapshot<T> {
+    #[inline]
+    pub fn new(value: T, tick: u32, delta_time: f32) -> Self {
+        Self{
+            value,
+            tick,
+            delta_time
+        }
+    }
+
+    #[inline]
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
+    #[inline]
+    pub fn tick(&self) -> u32 {
+        self.tick
+    }
+
+    #[inline]
+    pub fn delta_time(&self) -> f32 {
+        self.delta_time
+    } 
 }
 
 #[derive(Resource)]
@@ -237,7 +263,7 @@ fn snapshot_buffer_init_system<T: Component + Interpolate + Clone>(
 fn snapshot_interpolation_system<T: Component + Interpolate + Clone>(
     mut q: Query<(&mut T, &mut SnapshotBuffer<T>), (With<Interpolated>, Without<Predicted>)>,
     time: Res<Time>,
-    config: Res<InterpolationConfig>,
+    config: Res<RepliconSnapConfig>,
 ) {
     for (mut component, mut snapshot_buffer) in q.iter_mut() {
         let buffer = &snapshot_buffer.buffer;

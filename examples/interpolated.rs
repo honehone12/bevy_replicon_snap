@@ -236,7 +236,7 @@ impl SimpleBoxPlugin {
         const MOVE_SPEED: f32 = 300.0;
         for FromClient { client_id, event } in move_events.read() {
             for (player, mut position) in &mut players {
-                if client_id.get() == player.0 {
+                if client_id.get() == player.get() {
                     **position += event.0 * time.delta_seconds() * MOVE_SPEED;
                 }
             }
@@ -281,7 +281,7 @@ struct PlayerBundle {
 impl PlayerBundle {
     fn new(id: ClientId, position: Vec2, color: Color) -> Self {
         Self {
-            owner: NetworkOwner(id.get()),
+            owner: NetworkOwner::new(id.get()),
             position: PlayerPosition(position),
             color: PlayerColor(color),
             replication: Replication,
