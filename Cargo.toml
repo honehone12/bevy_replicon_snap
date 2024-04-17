@@ -18,8 +18,6 @@ bevy_replicon = { version = "0.24.1", path = "../bevy_replicon" }
 bevy_replicon_renet = { version = "0.1.0", path = "../bevy_replicon/bevy_replicon_renet" }
 serde = "1.0"
 
-bevy_replicon_snap_macros = { version = "0.2.0", path = "macros" }
-
 [dev-dependencies]
 clap = { version = "4.1", features = ["derive"] }
 bevy = { version = "0.13.0", default-features = false, features = [
