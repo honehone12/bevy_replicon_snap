@@ -53,7 +53,7 @@ impl<C: Component> ComponentSnapshotBuffer<C> {
             return;
         }
 
-        if tick <= self.latest_snapshot_tick {
+        if tick < self.latest_snapshot_tick {
             warn!(
                 "discarding a old component snapshot with tick:{}, latest:{}", 
                 tick, self.latest_snapshot_tick

@@ -12,21 +12,11 @@ pub mod prelude {
     };
 }
 
-use std::{fmt::Debug, io::Cursor};
+use std::fmt::Debug;
 use bevy::prelude::*;
-use bevy_replicon::{
-    bincode::{self, Options}, 
-    client::client_mapper::ServerEntityMap, 
-    core::{
-        replication_fns::{
-            self, ComponentFns, DeserializeFn, RemoveFn, SerializeFn
-        }, 
-        replicon_tick::RepliconTick
-    }, 
-    prelude::*
-};
-use bevy_replicon_renet::renet::{transport::NetcodeClientTransport, RenetClient};
-use serde::{Serialize, de::DeserializeOwned};
+use bevy_replicon::prelude::*;
+use bevy_replicon_renet::renet::RenetClient;
+use serde::{de::DeserializeOwned, Serialize};
 use prelude::*;
 
 #[derive(Resource, Debug)]
@@ -44,6 +34,7 @@ pub enum RepliconSnapSet {
     /// Runs in `PreUpdate`.
     Update,
 }
+
 pub struct RepliconSnapPlugin {
     pub server_tick_rate: u16
 }
@@ -62,81 +53,18 @@ impl Plugin for RepliconSnapPlugin {
         .configure_sets(
             PreUpdate, 
             RepliconSnapSet::Update.after(RepliconSnapSet::Init),
-        )
-        .add_systems(
-            Update,
-            init_prediction
-            .in_set(RepliconSnapSet::Init)
-            .run_if(resource_exists::<NetcodeClientTransport>)
         );
     }
 }
 
-pub fn deserialize_snap_component<C: Clone + Interpolate + Component + DeserializeOwned>(
-    entity: &mut EntityWorldMut,
-    _entity_map: &mut ServerEntityMap,
-    cursor: &mut Cursor<&[u8]>,
-    tick: RepliconTick,
-) -> bincode::Result<()> {
-    
-    
-    // !!
-    // need also for server
-    // but serialize fn does not have access for the entity
-
-    let component: C = bincode::DefaultOptions::new().deserialize_from(cursor)?;
-    if let Some(mut buffer) = entity.get_mut::<ComponentSnapshotBuffer<C>>() {
-        buffer.insert(component, tick.get());
-    } else {
-        entity.insert(component);
-    }
-
-    Ok(())
-}
-
 pub trait RepliconSnapExt {
-    fn use_event_snapshots<E>(&mut self, max_buffer_size: usize) -> &mut Self
-    where E: Event;
-
     fn interpolate_replication<C>(&mut self) -> &mut Self
-    where C: Component + Interpolate + Clone + Serialize + DeserializeOwned;
-
-    fn interpolate_replication_with<C>(
-        &mut self,
-        serialize: SerializeFn,
-        deserialize: DeserializeFn,
-        remove: RemoveFn,
-    ) -> &mut Self
-    where C: Component + Interpolate + Clone;
+    where C: Component + Interpolate + Serialize + DeserializeOwned;
 }
 
 impl RepliconSnapExt for App {
-    fn use_event_snapshots<C>(&mut self, max_buffer_size: usize) -> &mut Self
-    where C: Event {
-        let history = EventSnapshotHistory::<C>::new(max_buffer_size);
-        self.insert_resource(history)
-    }
-
     fn interpolate_replication<C>(&mut self) -> &mut Self
-    where
-        C: Component + Interpolate + Clone + Serialize + DeserializeOwned,
-    {
-        self.interpolate_replication_with::<C>(
-            replication_fns::serialize::<C>,
-            deserialize_snap_component::<C>,
-            replication_fns::remove::<C>,
-        )
-    }
-
-    fn interpolate_replication_with<C>(
-        &mut self,
-        serialize: SerializeFn,
-        deserialize: DeserializeFn,
-        remove: RemoveFn,
-    ) -> &mut Self
-    where
-        C: Component + Interpolate + Clone,
-    {
+    where C: Component + Interpolate + Serialize + DeserializeOwned {
         self.add_systems(
             PreUpdate, (
                 add_snapshots_age_system::<C>,
@@ -146,13 +74,6 @@ impl RepliconSnapExt for App {
             .in_set(RepliconSnapSet::Update)
             .run_if(resource_exists::<RenetClient>)
         );
-        unsafe {
-            self.replicate_with::<C>(ComponentFns{
-                serialize, 
-                deserialize, 
-                remove
-            })
-        }
+        self.replicate::<C>()
     }
 }
-

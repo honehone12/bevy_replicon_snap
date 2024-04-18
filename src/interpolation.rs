@@ -14,14 +14,14 @@ pub struct InterpolatedReplication;
 
 /// Interpolate between snapshots.
 pub(crate) fn interpolate_replication_system<C: Component + Interpolate>(
-    mut q: Query<
+    mut query: Query<
         (&mut C, &ComponentSnapshotBuffer<C>), 
         (With<InterpolatedReplication>, Without<OwnerControlling>)
     >,
     time: Res<Time>,
     snap_config: Res<RepliconSnapConfig>,
 ) {
-    for (mut component, snapshot_buffer) in q.iter_mut() {
+    for (mut component, snapshot_buffer) in query.iter_mut() {
         let buff_len =  snapshot_buffer.len();
         if buff_len < 2 {
             continue;
