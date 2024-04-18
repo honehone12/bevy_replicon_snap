@@ -49,6 +49,10 @@ impl<C: Component> ComponentSnapshotBuffer<C> {
 
     #[inline]
     pub fn insert(&mut self, element: C, tick: u32) {
+        if self.max_buffer_size == 0 {
+            return;
+        }
+
         if tick <= self.latest_snapshot_tick {
             warn!(
                 "discarding a old component snapshot with tick:{}, latest:{}", 

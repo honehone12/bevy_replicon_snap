@@ -106,6 +106,10 @@ impl<E: Event> EventSnapshotHistory<E> {
         .entry(client_id)
         .or_insert(EventSnapshotBuffer::new());
 
+        if self.max_buffer_size == 0 {
+            return;
+        }
+
         if tick < history.latest_snapshot_tick {
             warn!(
                 "discarding a old event snapshot with tick:{}, latest:{}", 
