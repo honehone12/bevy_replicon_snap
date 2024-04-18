@@ -55,7 +55,6 @@ impl Plugin for RepliconSnapPlugin {
             server_tick_rate: self.server_tick_rate
         })
         .replicate::<NetworkOwner>()
-        .replicate::<Predicted>()
         .configure_sets(
             PreUpdate, 
             RepliconSnapSet::Init.after(ClientSet::Receive)

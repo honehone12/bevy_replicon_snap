@@ -9,11 +9,14 @@ pub trait Interpolate {
     fn interpolate(&self, other: &Self, t: f32) -> Self;
 }
 
+#[derive(Component, Default)]
+pub struct InterpolatedReplication;
+
 /// Interpolate between snapshots.
 pub(crate) fn interpolate_replication_system<C: Component + Interpolate>(
     mut q: Query<
         (&mut C, &ComponentSnapshotBuffer<C>), 
-        Without<OwnerControlling>
+        (With<InterpolatedReplication>, Without<OwnerControlling>)
     >,
     time: Res<Time>,
     snap_config: Res<RepliconSnapConfig>,

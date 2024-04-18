@@ -77,11 +77,6 @@ impl<C: Component> ComponentSnapshotBuffer<C> {
     }
 
     #[inline]
-    pub fn at(&self, at: usize) -> Option<&ComponentSnapshot<C>> {
-        self.buffer.get(at)
-    }
-
-    #[inline]
     pub fn len(&self) -> usize {
         self.buffer.len()
     }

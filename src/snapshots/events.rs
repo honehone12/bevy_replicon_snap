@@ -53,6 +53,11 @@ impl<E: Event> EventSnapshotBuffer<E> {
     }
 
     #[inline]
+    pub fn latest_snapshot(&self) -> Option<&EventSnapshot<E>> {
+        self.buffer.back()
+    }
+
+    #[inline]
     pub fn latest_snapshot_tick(&self) -> u32 {
         self.latest_snapshot_tick
     }
