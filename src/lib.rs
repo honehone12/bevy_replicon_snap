@@ -4,7 +4,7 @@ pub mod prediction;
 pub mod interpolation;
 pub mod prelude {
     pub use crate::{
-        RepliconSnapExt, RepliconSnapPlugin, RepliconSnapSet,
+        RepliconSnapAppExt, RepliconSnapPlugin, RepliconSnapSet,
         core::*,
         prediction::*,
         interpolation::*,
@@ -15,7 +15,6 @@ pub mod prelude {
 use std::fmt::Debug;
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
-use bevy_replicon_renet::renet::RenetClient;
 use serde::{de::DeserializeOwned, Serialize};
 use prelude::*;
 
@@ -57,12 +56,19 @@ impl Plugin for RepliconSnapPlugin {
     }
 }
 
-pub trait RepliconSnapExt {
+pub trait RepliconSnapAppExt {
     fn interpolate_replication<C>(&mut self) -> &mut Self
     where C: Component + Interpolate + Serialize + DeserializeOwned;
+
+    fn use_client_event_snapshots<E>(
+        &mut self, 
+        channel: impl Into<RepliconChannel>,
+        max_buffer_size: usize
+    ) -> &mut Self
+    where E: Event + Serialize + DeserializeOwned;
 }
 
-impl RepliconSnapExt for App {
+impl RepliconSnapAppExt for App {
     fn interpolate_replication<C>(&mut self) -> &mut Self
     where C: Component + Interpolate + Serialize + DeserializeOwned {
         self.add_systems(
@@ -72,8 +78,34 @@ impl RepliconSnapExt for App {
             )
             .chain()
             .in_set(RepliconSnapSet::Update)
-            .run_if(resource_exists::<RenetClient>)
+            .run_if(resource_exists::<RepliconClient>)
         );
         self.replicate::<C>()
     }
+    
+    fn use_client_event_snapshots<E>(
+        &mut self, 
+        channel: impl Into<RepliconChannel>,    
+        max_buffer_size: usize
+    ) -> &mut Self 
+    where E: Event + Serialize + DeserializeOwned{
+        if self.world.contains_resource::<RepliconClient>() {
+            self.insert_resource(EventSnapshotBuffer::<E>::new(max_buffer_size));
+        } else if self.world.contains_resource::<RepliconServer>() {
+            self.insert_resource(EventSnapshotClientMap::<E>::new(max_buffer_size));
+        } else {
+            panic!("please build replicon server or client before the call")
+        }
+        self.add_client_event::<E>(channel)
+    }
+
+    
+}
+
+pub trait ClientEventSnapshotsEventWriterExt {
+
+}
+
+pub trait ClientEventSnapshotsEventReaderExt {
+
 }

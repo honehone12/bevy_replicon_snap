@@ -5,15 +5,15 @@ use serde::{Serialize, Deserialize};
 #[derive(Deserialize, Serialize)]
 pub struct ComponentSnapshot<C: Component> {
     tick: u32,
-    value: C,
+    component: C,
 }
 
 impl<C: Component> ComponentSnapshot<C> {
     #[inline]
-    pub fn new(value: C, tick: u32) -> Self {
-        Self { 
+    pub fn new(component: C, tick: u32) -> Self {
+        Self{ 
             tick, 
-            value 
+            component 
         }
     }
 
@@ -23,8 +23,8 @@ impl<C: Component> ComponentSnapshot<C> {
     }
 
     #[inline]
-    pub fn value(&self) -> &C {
-        &self.value
+    pub fn component(&self) -> &C {
+        &self.component
     }
 }
 
@@ -38,9 +38,9 @@ pub struct ComponentSnapshotBuffer<C: Component> {
 
 impl<C: Component> ComponentSnapshotBuffer<C> {
     #[inline]
-    pub fn new(max_buffer_size: usize) -> Self {
-        Self {
-            buffer: VecDeque::new(),
+    pub fn with_capacity(max_buffer_size: usize) -> Self {
+        Self{
+            buffer: VecDeque::with_capacity(max_buffer_size),
             time_since_last_snapshot: 0.0,
             latest_snapshot_tick: 0,
             max_buffer_size
@@ -48,7 +48,7 @@ impl<C: Component> ComponentSnapshotBuffer<C> {
     }
 
     #[inline]
-    pub fn insert(&mut self, element: C, tick: u32) {
+    pub fn insert(&mut self, component: C, tick: u32) {
         if self.max_buffer_size == 0 {
             return;
         }
@@ -65,7 +65,7 @@ impl<C: Component> ComponentSnapshotBuffer<C> {
             self.buffer.pop_front();
         }
 
-        self.buffer.push_back(ComponentSnapshot::new(element, tick));
+        self.buffer.push_back(ComponentSnapshot::new(component, tick));
         self.time_since_last_snapshot = 0.0;
         self.latest_snapshot_tick = tick;
     }
@@ -83,6 +83,11 @@ impl<C: Component> ComponentSnapshotBuffer<C> {
     #[inline]
     pub fn len(&self) -> usize {
         self.buffer.len()
+    }
+
+    #[inline]
+    pub fn sort_with_tick(&mut self) {
+        self.buffer.make_contiguous().sort_by_key(|s| s.tick);
     }
 
     #[inline]

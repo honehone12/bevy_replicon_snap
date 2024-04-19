@@ -1,25 +1,26 @@
 use std::collections::{VecDeque, vec_deque::Iter};
 use bevy::{prelude::*, utils::HashMap};
+use bevy_replicon::core::ClientId;
 
 pub struct EventSnapshot<E: Event> {
-    value: E,
-    tick: u32,
-    delta_time: f32,
+    event: E,
+    id: usize,
+    tick: u32
 }
 
 impl<E: Event> EventSnapshot<E> {
     #[inline]
-    pub fn new(value: E, tick: u32, delta_time: f32) -> Self {
+    pub fn new(event: E, id: usize, tick: u32) -> Self {
         Self{
-            value,
-            tick,
-            delta_time
+            event,
+            id,
+            tick
         }
     }
 
     #[inline]
     pub fn value(&self) -> &E {
-        &self.value
+        &self.event
     }
 
     #[inline]
@@ -28,21 +29,21 @@ impl<E: Event> EventSnapshot<E> {
     }
 
     #[inline]
-    pub fn delta_time(&self) -> f32 {
-        self.delta_time
+    pub fn id(&self) -> usize {
+        self.id
     } 
 }
 
-pub struct EventSnapshotBuffer<E: Event> {
+pub struct EventSnapshotBufferInner<E: Event> {
     buffer: VecDeque<EventSnapshot<E>>,
     latest_snapshot_tick: u32
 }
 
-impl<E: Event> EventSnapshotBuffer<E> {
+impl<E: Event> EventSnapshotBufferInner<E> {
     #[inline]
-    pub fn new() -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         Self { 
-            buffer: VecDeque::new(), 
+            buffer: VecDeque::with_capacity(capacity), 
             latest_snapshot_tick: 0 
         }
     }
@@ -66,17 +67,85 @@ impl<E: Event> EventSnapshotBuffer<E> {
     pub fn iter(&self) -> Iter<'_, EventSnapshot<E>> {
         self.buffer.iter()
     }
+
+    #[inline]
+    pub fn sort_with_id(&mut self) {
+        self.buffer.make_contiguous().sort_by_key(|s| s.id);
+    }
+
+    #[inline]
+    fn pop_front(&mut self) {
+        self.buffer.pop_front();
+    }
+
+    #[inline]
+    fn insert(&mut self, snapshot: EventSnapshot<E>) {
+        if snapshot.tick < self.latest_snapshot_tick {
+            warn!(
+                "discarding a old event snapshot with tick:{}, latest:{}", 
+                snapshot.tick, self.latest_snapshot_tick
+            );
+            return;
+        }
+
+        self.latest_snapshot_tick = snapshot.tick;
+        self.buffer.push_back(snapshot);
+    }
 }
 
 #[derive(Resource)]
-pub struct EventSnapshotHistory<E: Event> {
-    buffer: HashMap<u64, EventSnapshotBuffer<E>>,
+pub struct EventSnapshotBuffer<E: Event> {
+    buffer: EventSnapshotBufferInner<E>,
     max_buffer_size: usize
 }
 
-impl<E: Event> EventSnapshotHistory<E> {
+impl<E: Event> EventSnapshotBuffer<E> {
     #[inline]
-    pub fn new(max_buffer_size: usize) -> EventSnapshotHistory<E> {
+    pub fn new(max_buffer_size: usize) -> Self {
+        Self{
+            buffer: EventSnapshotBufferInner::with_capacity(max_buffer_size),
+            max_buffer_size
+        }
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
+    #[inline]
+    pub fn insert(&mut self, event: E, event_id: usize, tick: u32) {
+        if self.max_buffer_size == 0 {
+            return;
+        }
+
+        if self.buffer.len() >= self.max_buffer_size {
+            self.buffer.pop_front();
+        }
+
+        self.buffer.insert(EventSnapshot::new(event, event_id, tick));
+    }
+
+    #[inline]
+    pub fn iter(&self) -> Iter<'_, EventSnapshot<E>> {
+        self.buffer.iter()
+    }
+
+    #[inline]
+    pub fn sort_with_id(&mut self) {
+        self.buffer.sort_with_id();
+    }
+}
+
+#[derive(Resource)]
+pub struct EventSnapshotClientMap<E: Event> {
+    buffer: HashMap<ClientId, EventSnapshotBufferInner<E>>,
+    max_buffer_size: usize
+}
+
+impl<E: Event> EventSnapshotClientMap<E> {
+    #[inline]
+    pub fn new(max_buffer_size: usize) -> Self {
         Self{
             buffer: default(),
             max_buffer_size
@@ -89,52 +158,52 @@ impl<E: Event> EventSnapshotHistory<E> {
     }
 
     #[inline]
-    pub fn len(&self, client_id: u64) -> usize {
+    pub fn len(&self, client_id: ClientId) -> usize {
         match self.buffer.get(&client_id) {
             Some(h) => h.len(),
             None => 0
         }
     }
 
-    #[inline] 
-    pub fn history(&self, client_id: u64) -> Option<&EventSnapshotBuffer<E>> {
-        self.buffer.get(&client_id)
-    }
-
-    pub fn insert(&mut self, client_id: u64, value: E, tick: u32, delta_time: f32) {
+    #[inline]
+    pub fn insert(&mut self, client_id: ClientId, event: E, event_id: usize, tick: u32) {
         let history = self.buffer
         .entry(client_id)
-        .or_insert(EventSnapshotBuffer::new());
+        .or_insert(EventSnapshotBufferInner::with_capacity(self.max_buffer_size));
 
         if self.max_buffer_size == 0 {
             return;
         }
 
-        if tick < history.latest_snapshot_tick {
-            warn!(
-                "discarding a old event snapshot with tick:{}, latest:{}", 
-                tick, history.latest_snapshot_tick
-            );
-            return;
-        }
-
         if history.buffer.len() >= self.max_buffer_size {
-            history.buffer.pop_front();
+            history.pop_front();
         }
 
-        history.buffer.push_back(EventSnapshot {
-            value,
-            tick,
-            delta_time,
-        });
-        history.latest_snapshot_tick = tick;
+        history.insert(EventSnapshot::new(event, event_id, tick));
     }
 
-    pub fn frontier(&mut self, client_id: u64, frontier_tick: u32) 
+    #[inline]
+    pub fn iter(&mut self, client_id: ClientId) -> Iter<'_, EventSnapshot<E>> {
+        self.buffer
+        .entry(client_id)
+        .or_insert(EventSnapshotBufferInner::with_capacity(self.max_buffer_size))
+        .iter()
+    }
+
+    #[inline]
+    pub fn sort_with_id(&mut self, client_id: ClientId) {
+        self.buffer
+        .entry(client_id)
+        .or_insert(EventSnapshotBufferInner::with_capacity(self.max_buffer_size))
+        .sort_with_id();
+    }
+
+    #[inline]
+    pub fn frontier(&mut self, client_id: ClientId, frontier_tick: u32) 
     -> Iter<'_, EventSnapshot<E>> {
         let history = self.buffer
         .entry(client_id)
-        .or_insert(EventSnapshotBuffer::new());
+        .or_insert(EventSnapshotBufferInner::with_capacity(self.max_buffer_size));
 
         if let Some(last_index) = history.buffer
         .iter()

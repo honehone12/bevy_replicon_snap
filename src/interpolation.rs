@@ -39,7 +39,7 @@ pub(crate) fn interpolate_replication_system<C: Component + Interpolate>(
         let latest = iter.next().unwrap(); //buffer is longer than 2
         let second = iter.next().unwrap();
 
-        *component = second.value().interpolate(latest.value(), t);
+        *component = second.component().interpolate(latest.component(), t);
     }
 }
 

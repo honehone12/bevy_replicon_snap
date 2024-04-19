@@ -11,7 +11,6 @@ pub fn server_populate_buffer<C: Component + Clone>(
 ) {
     for (c, mut buff) in query.iter_mut() {
         buff.insert(c.clone(), replicon_tick.get());
-        info!("buffer len: {}", buff.len());
     }
 }
 
@@ -23,7 +22,6 @@ pub fn client_populate_buffer<C: Component + Clone>(
         match server_tick.get(&e) {
             Some(tick) => {
                 buff.insert(c.clone(), tick.get());
-                info!("buffer len: {}", buff.len());
             }
             None => {
                 if cfg!(debug_assertions) {
