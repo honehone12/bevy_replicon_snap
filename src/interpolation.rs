@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use crate::{
     RepliconSnapConfig,
     prediction::OwnerControlling, 
-    snapshots::components::ComponentSnapshotBuffer
+    snapshots::component_snapshots::ComponentSnapshotBuffer
 };
 
 pub trait Interpolate {

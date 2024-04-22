@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use serde::{Serialize, Deserialize};
 
-#[derive(Component, Deserialize, Serialize)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct NetworkOwner(u64);
 
 impl NetworkOwner {

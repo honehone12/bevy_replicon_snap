@@ -8,7 +8,7 @@ pub mod prelude {
         core::*,
         prediction::*,
         interpolation::*,
-        snapshots::{*, components::*, events::*}
+        snapshots::{*, component_snapshots::*, event_snapshots::*}
     };
 }
 
@@ -28,10 +28,12 @@ pub(crate) struct RepliconSnapConfig {
 pub enum RepliconSnapSet {
     /// Systems that initializes buffers and flag components for replicated entities.
     /// Runs in `PreUpdate`.
-    Init,
+    ServerInit,
+    ClientInit,
     /// Systems for actual calculation.
     /// Runs in `PreUpdate`.
-    Update,
+    ServerUpdate,
+    ClientUpdate
 }
 
 pub struct RepliconSnapPlugin {
@@ -41,18 +43,26 @@ pub struct RepliconSnapPlugin {
 impl Plugin for RepliconSnapPlugin {
     fn build(&self, app: &mut App) {
         app
-        .insert_resource(RepliconSnapConfig{
-            server_tick_rate: self.server_tick_rate
-        })
-        .replicate::<NetworkOwner>()
         .configure_sets(
             PreUpdate, 
-            RepliconSnapSet::Init.after(ClientSet::Receive)
+            RepliconSnapSet::ServerInit.after(ServerSet::Receive)
         )
         .configure_sets(
             PreUpdate, 
-            RepliconSnapSet::Update.after(RepliconSnapSet::Init),
-        );
+            RepliconSnapSet::ClientInit.after(ClientSet::Receive)
+        )
+        .configure_sets(
+            PreUpdate, 
+            RepliconSnapSet::ServerUpdate.after(RepliconSnapSet::ServerInit),
+        )
+        .configure_sets(
+            PreUpdate, 
+            RepliconSnapSet::ClientUpdate.after(RepliconSnapSet::ClientInit),
+        )
+        .insert_resource(RepliconSnapConfig{
+            server_tick_rate: self.server_tick_rate
+        })
+        .replicate::<NetworkOwner>();
     }
 }
 
@@ -65,7 +75,12 @@ pub trait RepliconSnapAppExt {
         channel: impl Into<RepliconChannel>,
         max_buffer_size: usize
     ) -> &mut Self
-    where E: Event + Serialize + DeserializeOwned;
+    where E: IndexedEvent + Serialize + DeserializeOwned + Clone;
+
+    fn use_component_snapshot<C>(
+        &mut self
+    ) -> &mut Self
+    where C: Component + Serialize + DeserializeOwned + Clone; 
 }
 
 impl RepliconSnapAppExt for App {
@@ -77,7 +92,7 @@ impl RepliconSnapAppExt for App {
                 interpolate_replication_system::<C>,
             )
             .chain()
-            .in_set(RepliconSnapSet::Update)
+            .in_set(RepliconSnapSet::ClientUpdate)
             .run_if(resource_exists::<RepliconClient>)
         );
         self.replicate::<C>()
@@ -87,25 +102,43 @@ impl RepliconSnapAppExt for App {
         &mut self, 
         channel: impl Into<RepliconChannel>,    
         max_buffer_size: usize
-    ) -> &mut Self 
-    where E: Event + Serialize + DeserializeOwned{
+    ) -> &mut Self
+    where E: IndexedEvent + Serialize + DeserializeOwned + Clone {
+        if self.world.contains_resource::<RepliconServer>() {
+            self
+            .insert_resource(EventSnapshotClientMap::<E>::new(max_buffer_size))
+            .add_systems(
+                PreUpdate, 
+                server_populate_client_event_buffer::<E>
+                .in_set(RepliconSnapSet::ServerUpdate)
+            );
+        }
         if self.world.contains_resource::<RepliconClient>() {
-            self.insert_resource(EventSnapshotBuffer::<E>::new(max_buffer_size));
-        } else if self.world.contains_resource::<RepliconServer>() {
-            self.insert_resource(EventSnapshotClientMap::<E>::new(max_buffer_size));
-        } else {
-            panic!("please build replicon server or client before the call")
+            self.add_systems(
+                PostUpdate, 
+                client_populate_client_event_buffer::<E>
+            );
         }
         self.add_client_event::<E>(channel)
     }
 
-    
-}
-
-pub trait ClientEventSnapshotsEventWriterExt {
-
-}
-
-pub trait ClientEventSnapshotsEventReaderExt {
-
+    fn use_component_snapshot<C>(
+        &mut self
+    ) -> &mut Self
+    where C: Component + Serialize + DeserializeOwned + Clone {
+        if self.world.contains_resource::<RepliconServer>() {
+            self.add_systems(
+                PostUpdate, 
+                server_populate_component_buffer::<C>
+            );
+        }
+        if self.world.contains_resource::<RepliconClient>() {
+            self.add_systems(
+                PreUpdate,
+                client_populate_component_buffer::<C>
+                .in_set(RepliconSnapSet::ClientUpdate)
+            );
+        }
+        self
+    }
 }
