@@ -107,8 +107,7 @@ impl<E: IndexedEvent> EventSnapshotBufferInner<E> {
 
     #[inline]
     pub fn frontier(&mut self) -> Iter<'_, EventSnapshot<E>> {
-        if let Some(begin) = self.buffer
-        .iter()
+        if let Some(begin) = self.buffer.iter()
         .position(|e| e.index() >= self.frontier_index) {
             // buffer is not empty here
             self.frontier_index = self.buffer.back().unwrap().index() + 1;

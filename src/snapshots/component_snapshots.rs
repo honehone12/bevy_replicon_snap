@@ -1,4 +1,4 @@
-use std::collections::{VecDeque, vec_deque::Iter};
+use std::collections::{vec_deque::Iter, VecDeque};
 use bevy::prelude::*;
 use serde::{Serialize, Deserialize};
 

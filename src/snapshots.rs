@@ -8,7 +8,10 @@ use serde::{Serialize, de::DeserializeOwned};
 use crate::{EventSnapshotBuffer, EventSnapshotClientMap, IndexedEvent};
 
 pub(crate) fn server_populate_component_buffer<C: Component + Clone>(
-    mut query: Query<(&C, &mut ComponentSnapshotBuffer<C>), Changed<C>>,
+    mut query: Query<
+        (&C, &mut ComponentSnapshotBuffer<C>), 
+        Or<(Added<C>, Changed<C>)>
+    >,
     replicon_tick: Res<RepliconTick>
 ) {
     for (c, mut buff) in query.iter_mut() {
@@ -17,7 +20,10 @@ pub(crate) fn server_populate_component_buffer<C: Component + Clone>(
 }
 
 pub(crate) fn client_populate_component_buffer<C: Component + Clone>(
-    mut query: Query<(Entity , &C, &mut ComponentSnapshotBuffer<C>), Changed<C>>,
+    mut query: Query<
+        (Entity , &C, &mut ComponentSnapshotBuffer<C>), 
+        Or<(Added<C>, Changed<C>)>
+    >,
     server_tick: Res<ServerEntityTicks>,
 ) {
     for (e, c, mut buff) in query.iter_mut() {
