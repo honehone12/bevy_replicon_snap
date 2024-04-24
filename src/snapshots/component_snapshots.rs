@@ -76,6 +76,11 @@ impl<C: Component> ComponentSnapshotBuffer<C> {
     }
 
     #[inline]
+    pub fn get(&self, index: usize) -> Option<&ComponentSnapshot<C>> {
+        self.buffer.get(index)
+    }
+
+    #[inline]
     pub fn latest_snapshot_tick(&self) -> u32 {
         self.latest_snapshot_tick
     }

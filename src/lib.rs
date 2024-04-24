@@ -4,7 +4,7 @@ pub mod prediction;
 pub mod interpolation;
 pub mod prelude {
     pub use crate::{
-        RepliconSnapAppExt, RepliconSnapPlugin, RepliconSnapSet,
+        RepliconSnapAppExt, RepliconSnapPlugin,
         core::*,
         prediction::*,
         interpolation::*,
@@ -23,17 +23,13 @@ pub(crate) struct RepliconSnapConfig {
     server_tick_rate: u16
 }
 
-/// Sets for interpolation systems.
-#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub enum RepliconSnapSet {
-    /// Systems that initializes buffers and flag components for replicated entities.
-    /// Runs in `PreUpdate`.
-    ServerInit,
-    ClientInit,
-    /// Systems for actual calculation.
-    /// Runs in `PreUpdate`.
-    ServerUpdate,
-    ClientUpdate
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SnapSet {
+    ClientOnRecv,
+    ClientOnUpdate,
+    ServerOnRecv,
+    ServerOnSend,
 }
 
 pub struct RepliconSnapPlugin {
@@ -45,19 +41,19 @@ impl Plugin for RepliconSnapPlugin {
         app
         .configure_sets(
             PreUpdate, 
-            RepliconSnapSet::ServerInit.after(ServerSet::Receive)
+            SnapSet::ClientOnRecv.after(ClientSet::Receive)
+        )
+        .configure_sets(
+            PostUpdate, 
+            SnapSet::ClientOnUpdate
         )
         .configure_sets(
             PreUpdate, 
-            RepliconSnapSet::ClientInit.after(ClientSet::Receive)
+            SnapSet::ServerOnRecv.after(ServerSet::Receive)
         )
         .configure_sets(
-            PreUpdate, 
-            RepliconSnapSet::ServerUpdate.after(RepliconSnapSet::ServerInit),
-        )
-        .configure_sets(
-            PreUpdate, 
-            RepliconSnapSet::ClientUpdate.after(RepliconSnapSet::ClientInit),
+            PostUpdate, 
+            SnapSet::ServerOnSend.after(ServerSet::ReceivePackets)
         )
         .insert_resource(RepliconSnapConfig{
             server_tick_rate: self.server_tick_rate
@@ -92,7 +88,7 @@ impl RepliconSnapAppExt for App {
                 interpolate_replication_system::<C>,
             )
             .chain()
-            .in_set(RepliconSnapSet::ClientUpdate)
+            .in_set(SnapSet::ClientOnRecv)
             .run_if(resource_exists::<RepliconClient>)
         );
         self.replicate::<C>()
@@ -110,13 +106,14 @@ impl RepliconSnapAppExt for App {
             .add_systems(
                 PreUpdate, 
                 server_populate_client_event_buffer::<E>
-                .in_set(RepliconSnapSet::ServerUpdate)
+                .in_set(SnapSet::ServerOnRecv)
             );
         }
         if self.world.contains_resource::<RepliconClient>() {
             self.add_systems(
                 PostUpdate, 
                 client_populate_client_event_buffer::<E>
+                .in_set(SnapSet::ClientOnUpdate)
             );
         }
         self.add_client_event::<E>(channel)
@@ -130,13 +127,14 @@ impl RepliconSnapAppExt for App {
             self.add_systems(
                 PostUpdate, 
                 server_populate_component_buffer::<C>
+                .in_set(SnapSet::ServerOnSend)
             );
         }
         if self.world.contains_resource::<RepliconClient>() {
             self.add_systems(
                 PreUpdate,
                 client_populate_component_buffer::<C>
-                .in_set(RepliconSnapSet::ClientUpdate)
+                .in_set(SnapSet::ClientOnRecv)
             );
         }
         self

@@ -10,19 +10,23 @@ use crate::{EventSnapshotBuffer, EventSnapshotClientMap, IndexedEvent};
 pub(crate) fn server_populate_component_buffer<C: Component + Clone>(
     mut query: Query<
         (&C, &mut ComponentSnapshotBuffer<C>), 
-        Or<(Added<C>, Changed<C>)>
+        Changed<C>
     >,
     replicon_tick: Res<RepliconTick>
-) {
+) { 
     for (c, mut buff) in query.iter_mut() {
         buff.insert(c.clone(), replicon_tick.get());
+        debug!(
+            "inserted to component buffer at tick: {} now len: {}", 
+            replicon_tick.get(), buff.len()
+        );
     }
 }
 
 pub(crate) fn client_populate_component_buffer<C: Component + Clone>(
     mut query: Query<
         (Entity , &C, &mut ComponentSnapshotBuffer<C>), 
-        Or<(Added<C>, Changed<C>)>
+        Changed<C>
     >,
     server_tick: Res<ServerEntityTicks>,
 ) {
@@ -30,6 +34,10 @@ pub(crate) fn client_populate_component_buffer<C: Component + Clone>(
         match server_tick.get(&e) {
             Some(tick) => {
                 buff.insert(c.clone(), tick.get());
+                debug!(
+                    "inserted to component buffer at tick: {} now len: {}",
+                    tick.get(), buff.len()
+                );
             }
             None => {
                 if cfg!(debug_assertions) {
@@ -49,7 +57,11 @@ pub(crate) fn server_populate_client_event_buffer<E>(
 ) 
 where E: IndexedEvent + Serialize + DeserializeOwned + Clone {
     for FromClient { client_id, event } in events.read() {
-        buffer.insert(client_id, event.clone(), replicon_tick.get())
+        buffer.insert(client_id, event.clone(), replicon_tick.get());
+        debug!(
+            "inserted to event buffer at tick: {} now len: {}", 
+            replicon_tick.get(), buffer.len(client_id)
+        );
     }
 }
 
@@ -64,6 +76,10 @@ where E: IndexedEvent + Serialize + DeserializeOwned + Clone {
             match server_ticks.get(&e) {
                 Some(tick) => {
                     buff.insert(event.clone(), tick.get());
+                    debug!(
+                        "inserted to event buffer at tick: {} now len: {}", 
+                        tick.get(), buff.len()
+                    );
                 }
                 None => {
                     if cfg!(debug_assertions) {
