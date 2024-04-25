@@ -20,16 +20,22 @@ pub fn interpolate<C: Component + Interpolate>(
         return;
     }
 
+    // network_tick_delta = 100%
+    // calc elapsed = ?%
+    // into 0.0 ~ 1.0
+
     let elapsed = snapshot_buffer.age();
     if elapsed > network_tick_delta + delta_time {
+        debug!("discarding interpolation for old snapshot... elapsed: {elapsed}");
         return;
     }
-
     let t = (elapsed / network_tick_delta).clamp(0.0, 1.0);
+
     let mut iter = snapshot_buffer.iter().rev();
     let latest = iter.next().unwrap(); //buffer is longer than 2
     let second = iter.next().unwrap();
 
+    info!("performing interpolare at t: {t}");
     *component = second.component().interpolate(latest.component(), t);
 }
 
