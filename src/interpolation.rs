@@ -1,9 +1,5 @@
 use bevy::prelude::*;
-use crate::{
-    RepliconSnapConfig,
-    prediction::OwnerControlling, 
-    snapshots::component_snapshots::ComponentSnapshotBuffer
-};
+use crate::snapshots::component_snapshots::ComponentSnapshotBuffer;
 
 pub trait Interpolate {
     fn interpolate(&self, other: &Self, t: f32) -> Self;
@@ -13,38 +9,32 @@ pub trait Interpolate {
 pub struct InterpolatedReplication;
 
 /// Interpolate between snapshots.
-pub(crate) fn interpolate_replication_system<C: Component + Interpolate>(
-    mut query: Query<
-        (&mut C, &ComponentSnapshotBuffer<C>), 
-        (With<InterpolatedReplication>, Without<OwnerControlling>)
-    >,
-    time: Res<Time>,
-    snap_config: Res<RepliconSnapConfig>,
+pub fn interpolate<C: Component + Interpolate>(
+    component: &mut C,
+    snapshot_buffer: &ComponentSnapshotBuffer<C>,
+    delta_time: f32,
+    network_tick_delta: f32
 ) {
-    for (mut component, snapshot_buffer) in query.iter_mut() {
-        let buff_len =  snapshot_buffer.len();
-        if buff_len < 2 {
-            continue;
-        }
-
-        let delta_time = time.delta_seconds();
-        let elapsed = snapshot_buffer.age();
-        let tick_duration = 1.0 / (snap_config.server_tick_rate as f32);
-        if elapsed > tick_duration + delta_time {
-            continue;
-        }
-
-        let t = (elapsed / tick_duration).clamp(0.0, 1.0);
-        let mut iter = snapshot_buffer.iter().rev();
-        let latest = iter.next().unwrap(); //buffer is longer than 2
-        let second = iter.next().unwrap();
-
-        *component = second.component().interpolate(latest.component(), t);
+    let buff_len =  snapshot_buffer.len();
+    if buff_len < 2 {
+        return;
     }
+
+    let elapsed = snapshot_buffer.age();
+    if elapsed > network_tick_delta + delta_time {
+        return;
+    }
+
+    let t = (elapsed / network_tick_delta).clamp(0.0, 1.0);
+    let mut iter = snapshot_buffer.iter().rev();
+    let latest = iter.next().unwrap(); //buffer is longer than 2
+    let second = iter.next().unwrap();
+
+    *component = second.component().interpolate(latest.component(), t);
 }
 
 /// Advances the snapshot buffer time for entities.
-pub(crate) fn add_snapshots_age_system<C: Component + Interpolate>(
+pub(crate) fn add_snapshots_age_system<C: Component>(
     mut q: Query<&mut ComponentSnapshotBuffer<C>>,
     time: Res<Time>,
 ) {

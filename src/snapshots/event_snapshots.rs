@@ -172,8 +172,7 @@ impl<E: IndexedEvent> EventSnapshotBuffer<E> {
     }
 
     #[inline]
-    pub fn frontier(&mut self) 
-    -> Iter<'_, EventSnapshot<E>> {
+    pub fn frontier(&mut self) -> Iter<'_, EventSnapshot<E>> {
         self.buffer.frontier()
     }
 }

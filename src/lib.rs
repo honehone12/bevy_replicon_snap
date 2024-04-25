@@ -18,11 +18,6 @@ use bevy_replicon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use prelude::*;
 
-#[derive(Resource, Debug)]
-pub(crate) struct RepliconSnapConfig {
-    server_tick_rate: u16
-}
-
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SnapSet {
@@ -32,9 +27,7 @@ pub enum SnapSet {
     ServerOnSend,
 }
 
-pub struct RepliconSnapPlugin {
-    pub server_tick_rate: u16
-}
+pub struct RepliconSnapPlugin;
 
 impl Plugin for RepliconSnapPlugin {
     fn build(&self, app: &mut App) {
@@ -55,17 +48,11 @@ impl Plugin for RepliconSnapPlugin {
             PostUpdate, 
             SnapSet::ServerOnSend.after(ServerSet::ReceivePackets)
         )
-        .insert_resource(RepliconSnapConfig{
-            server_tick_rate: self.server_tick_rate
-        })
         .replicate::<NetworkOwner>();
     }
 }
 
 pub trait RepliconSnapAppExt {
-    fn interpolate_replication<C>(&mut self) -> &mut Self
-    where C: Component + Interpolate + Serialize + DeserializeOwned;
-
     fn use_client_event_snapshots<E>(
         &mut self, 
         channel: impl Into<RepliconChannel>,
@@ -80,20 +67,6 @@ pub trait RepliconSnapAppExt {
 }
 
 impl RepliconSnapAppExt for App {
-    fn interpolate_replication<C>(&mut self) -> &mut Self
-    where C: Component + Interpolate + Serialize + DeserializeOwned {
-        self.add_systems(
-            PreUpdate, (
-                add_snapshots_age_system::<C>,
-                interpolate_replication_system::<C>,
-            )
-            .chain()
-            .in_set(SnapSet::ClientOnRecv)
-            .run_if(resource_exists::<RepliconClient>)
-        );
-        self.replicate::<C>()
-    }
-    
     fn use_client_event_snapshots<E>(
         &mut self, 
         channel: impl Into<RepliconChannel>,    
@@ -132,8 +105,10 @@ impl RepliconSnapAppExt for App {
         }
         if self.world.contains_resource::<RepliconClient>() {
             self.add_systems(
-                PreUpdate,
-                client_populate_component_buffer::<C>
+                PreUpdate, (
+                    client_populate_component_buffer::<C>,
+                    add_snapshots_age_system::<C>
+                )
                 .in_set(SnapSet::ClientOnRecv)
             );
         }
