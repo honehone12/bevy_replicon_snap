@@ -35,7 +35,7 @@ pub fn interpolate<C: Component + Interpolate>(
     let latest = iter.next().unwrap(); //buffer is longer than 2
     let second = iter.next().unwrap();
 
-    info!("performing interpolare at t: {t}");
+    debug!("performing interpolare at t: {t}");
     *component = second.component().interpolate(latest.component(), t);
 }
 
