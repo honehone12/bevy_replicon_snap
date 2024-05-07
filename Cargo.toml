@@ -14,8 +14,8 @@ description = "High-level networking crate that extends the bevy_replicon crate 
 
 [dependencies]
 bevy = { version = "0.13.1", default_features = false }
-bevy_replicon = { version = "0.24.1", path = "../bevy_replicon" }
-bevy_replicon_renet = { version = "0.1.0", path = "../bevy_replicon/bevy_replicon_renet" }
+bevy_replicon = "0.24.1"
+bevy_replicon_renet = "0.1.0"
 serde = "1.0"
 
 [dev-dependencies]
