@@ -46,7 +46,7 @@ impl Plugin for RepliconSnapPlugin {
         )
         .configure_sets(
             PostUpdate, 
-            SnapSet::ServerOnSend.after(ServerSet::ReceivePackets)
+            SnapSet::ServerOnSend.after(ServerSet::SendPackets)
         )
         .replicate::<NetworkOwner>();
     }
